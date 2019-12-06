@@ -46,9 +46,9 @@
 
 						<% for(let i = 0; i < claims.length; i++){%>
 						<tr>
-							<td><%= claims[i].ID %></td>
+							<td><a href="claim/<%= claims[i].ID %>"><%= claims[i].ID %></a></td>
 							<td><%= claims[i].Patient %></td>
-							<td><%= claims[i].Procedure %></td>
+							<td><%= claims[i].ProcedureName %></td>
 							<td><%= claims[i].Status %></td>
 						</tr>
 						<% } %>

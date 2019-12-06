@@ -6,31 +6,25 @@ const app = express();
 const flash = require('express-flash');
 const session = require('express-session');
 const bodyParser = require('body-parser');
-const passport = require('passport');
 const methodOverride = require('method-override');
 const mysql = require('./dbconnection');
 
 
 app.set('port', 5058);
 
+const passport = require('passport');
 const initializePassport = require('./passport-config');
 initializePassport(passport,
-	email => users.find(user => user.email === email),
+	email => {
+		const usr = users.find(user => user.email === email);
+		console.log(usr);
+		return usr;
+	},
 	id => users.find(user => user.id === id)
 );
 
-const users = [
-	{ id: 51321321321321, name: "Justin", email: "bethelju@oregonstate.edu", password: "password" }
-];
-const ourClaims = [
-	{ id: "421312312312", patient: "Neil Cicierega", procedure: "Root Canal", status: "Pending" },
-	{ id: "321312312312", patient: "Oprah Winfrey", procedure: "Appendectomy", status: "Approved" },
-	{ id: "133424341432", patient: "Spongebob", procedure: "SUDS Diagnosis", status: "Denied" },
-	{ id: "423213123123", patient: "Joan of Arc", procedure: "Scoliosis", status: "Pending" },
-	{ id: "132312312312", patient: "Rene Descartes", procedure: "Ingrown Toenail", status: "Approved" },
-	{ id: "123231231232", patient: "Albert Camus", procedure: "Triple Bypass", status: "Approved" },
-	{ id: "123131231233", patient: "David Hume", procedure: "Lumbago", status: "Pending" }
-];
+let users = [];
+loadUsers();
 
 app.set('view-engine', 'ejs');
 app.use(express.urlencoded({
@@ -51,51 +45,112 @@ app.get("/login", (req, res) => {
 	res.render('loginpage.ejs');
 });
 
-// app.get("/claims", checkAuthenticated, (req, res) => {
-// 	res.render('viewsubmittedclaims.ejs', { claims: ourClaims });
-// });
-app.get("/claims", getClaims);
-
-app.get("/", (req, res) => {
-	res.redirect("/login");
-});
-
-app.get("/createNewClaim", (req, res) => {
-	res.render('createNewClaim.ejs')
-});
-
-app.post('/createNewClaim', (req, res) => {
-	var patient_id = req.body.patient_id;
-	var procedureName = req.body.procedureName;
-	var procedureDate = req.body.procedureDate;
-	var diagnosis = req.body.diagnosis;
-	var doctorName = req.body.doctorName;
-	var operationDate = req.body.operationDate;
-	res.redirect("/claims");
-});
-
 app.post('/login', passport.authenticate('local', {
 	successRedirect: '/claims',
 	failureRedirect: '/login',
 	failureFlash: true
 }));
 
-app.get('/createNewAccount', (req, res) => {
-	res.render('createNewAccount.ejs');
-});
-
-app.post('/createNewAccount', (req, res) => {
-	users.push({id:Math.floor(10000000000000 + Math.random()*9000000000000),
-		name: req.body.name,
-		 email: req.body.username,
-		password: req.body.password[0]});
-	res.redirect('/login');
-})
-
 app.get('/logout', (req, res) => {
 	req.logOut();
 	res.redirect('/login');
 });
+
+
+
+app.get("/", (req, res) => {
+	res.redirect("/login");
+});
+
+// app.get("/claims", checkAuthenticated, (req, res) => {
+// 	res.render('viewsubmittedclaims.ejs', { claims: ourClaims });
+// });
+app.get("/claims", (req, res, next) => {
+	mysql.pool.query('SELECT * FROM Claims', (err, rows, fields) => {
+		if (err) {
+			next(err);
+			return;
+		}
+		console.log(rows);
+		res.render('viewsubmittedclaims.ejs', { claims: rows });
+	});
+});
+
+app.get("/createNewClaim", (req, res) => {
+	res.render('createNewClaim.ejs', { claim: {} })
+});
+app.post('/createNewClaim', (req, res, next) => {
+
+	const parms = [parseInt(req.body.claimId), req.body.patientName, req.body.procedureName, req.body.procedureDate, req.body.diagnosis, req.body.doctorName, req.body.operationDate];
+	console.log(parms);
+
+	mysql.pool.query("INSERT INTO Claims (ID, Patient, ProcedureName, ProcedureDate, Diagnosis, DoctorName, OperationDate) VALUES (?)",
+		[parms],
+		function (err, result) {
+			//console.log(result);
+			if (err) {
+				next(err);
+				return;
+			}
+			res.redirect("/claims");
+		});
+
+});
+
+app.get("/claim/:claimId", (req, res) => {
+	const claimId = req.params.claimId;
+	mysql.pool.query('SELECT * FROM Claims where ID = ?', [claimId], (err, rows, fields) => {
+		if (err) {
+			next(err);
+			return;
+		}
+		const claim = rows[0];
+		claim.ProcedureDate = formatDate(claim.ProcedureDate);
+		claim.OperationDate = formatDate(claim.OperationDate);
+		console.log(rows);
+		res.render('createNewClaim.ejs', { claim: rows[0] })
+	});
+});
+app.post('/claim/:claimId', (req, res, next) => {
+
+	const parms = [req.body.patientName, req.body.procedureName, req.body.procedureDate, req.body.diagnosis, req.body.doctorName, req.body.operationDate, parseInt(req.params.claimId)];
+	console.log(parms);
+
+	mysql.pool.query("UPDATE Claims SET Patient=?, ProcedureName=?, ProcedureDate=?, Diagnosis=?, DoctorName=?, OperationDate=? WHERE ID = ?",
+		parms,
+		function (err, result) {
+			//console.log(result);
+			if (err) {
+				next(err);
+				return;
+			}
+			res.redirect("/claims");
+		});
+
+});
+
+app.get('/createNewAccount', (req, res) => {
+	res.render('createNewAccount.ejs');
+});
+
+app.post('/createNewAccount', (req, res, next) => {
+
+	const parms = [req.body.name, req.body.username, req.body.password[0]];
+	console.log(parms);
+
+	mysql.pool.query("INSERT INTO Users (Name, Email, Password) VALUES (?)",
+		[parms],
+		function (err, result) {
+			//console.log(result);
+			if (err) {
+				next(err);
+				return;
+			}
+			loadUsers();
+			res.redirect('/login');
+		})
+});
+
 
 //Middleware function to check if current user is authenticated
 //If so, go to next function
@@ -107,18 +162,19 @@ function checkAuthenticated(req, res, next) {
 	res.redirect('/login');
 }
 
-function getClaims(req, res, next) {
-	const stmt = `SELECT * FROM Claims`;
-	mysql.pool.query(stmt, function (err, rows, fields) {
-		if (err) {
-			next(err);
-			return;
-		}
-		console.log(rows);
-		res.render('viewsubmittedclaims.ejs', { claims: rows });
-	});
-}
 
 app.listen(app.get('port'), function () {
 	console.log("SERVER IS RUNNING");
 });
+
+function formatDate(date) { return date && date.toISOString && date.toISOString().substring(0, 10); }
+
+function loadUsers() {
+	mysql.pool.query('SELECT ID as id, Name as name, Email as email, Password as password FROM Users', (err, rows, fields) => {
+		if (err) {
+			return;
+		}
+		console.log(rows);
+		users = rows;
+	});
+}
