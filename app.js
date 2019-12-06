@@ -20,7 +20,7 @@ initializePassport(passport,
 );
 
 const users = [
-	{ id: "51321321321321", name: "Justin", email: "bethelju@oregonstate.edu", password: "password" }
+	{ id: 51321321321321, name: "Justin", email: "bethelju@oregonstate.edu", password: "password" }
 ];
 const ourClaims = [
 	{ id: "421312312312", patient: "Neil Cicierega", procedure: "Root Canal", status: "Pending" },
@@ -60,11 +60,37 @@ app.get("/", (req, res) => {
 	res.redirect("/login");
 });
 
+app.get("/createNewClaim", (req, res) => {
+	res.render('createNewClaim.ejs')
+});
+
+app.post('/createNewClaim', (req, res) => {
+	var patient_id = req.body.patient_id;
+	var procedureName = req.body.procedureName;
+	var procedureDate = req.body.procedureDate;
+	var diagnosis = req.body.diagnosis;
+	var doctorName = req.body.doctorName;
+	var operationDate = req.body.operationDate;
+	res.redirect("/claims");
+});
+
 app.post('/login', passport.authenticate('local', {
 	successRedirect: '/claims',
 	failureRedirect: '/login',
 	failureFlash: true
 }));
+
+app.get('/createNewAccount', (req, res) => {
+	res.render('createNewAccount.ejs');
+});
+
+app.post('/createNewAccount', (req, res) => {
+	users.push({id:Math.floor(10000000000000 + Math.random()*9000000000000),
+		name: req.body.name,
+		 email: req.body.username,
+		password: req.body.password[0]});
+	res.redirect('/login');
+})
 
 app.get('/logout', (req, res) => {
 	req.logOut();
